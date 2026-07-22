@@ -158,6 +158,11 @@ def index():
         da_co_anh=da_co_anh,
     )
 
+import os
 
 if __name__ == "__main__":
-    app.run(debug=True, use_reloader=False)
+    # Lấy PORT từ môi trường của Render (mặc định 5000 nếu chạy local)
+    port = int(os.environ.get("PORT", 5000))
+    
+    # Chạy trên 0.0.0.0 để Render truy cập được từ bên ngoài
+    app.run(host="0.0.0.0", port=port, debug=False)
