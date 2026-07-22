@@ -160,9 +160,7 @@ def index():
 
 import os
 
-if __name__ == "__main__":
-    # Lấy PORT từ môi trường của Render (mặc định 5000 nếu chạy local)
-    port = int(os.environ.get("PORT", 5000))
-    
-    # Chạy trên 0.0.0.0 để Render truy cập được từ bên ngoài
-    app.run(host="0.0.0.0", port=port, debug=False)
+if __name__ == '__main__':
+    port = int(os.environ.get("PORT", 10000))
+    # Tắt use_reloader để Flask không tự nhân đôi process
+    app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
