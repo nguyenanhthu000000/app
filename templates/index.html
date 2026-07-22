@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Xử lý Hình thái học Ảnh Nhị Phân</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body data-da-co-anh="{{ 'true' if da_co_anh else 'false' }}">
+
+    <div class="page-wrap">
+
+        <!-- SIDEBAR -->
+        <aside class="sidebar">
+            <h2>Điều khiển</h2>
+            <hr>
+
+            <form method="POST" enctype="multipart/form-data" id="form-dieu-khien">
+                <input type="hidden" name="mode_switch" id="mode_switch" value="0">
+
+                <div class="side-step">Bước 1 • Chọn chức năng</div>
+                <select name="app_mode" id="app_mode"
+                        onchange="document.getElementById('mode_switch').value='1'; document.getElementById('form-dieu-khien').submit();">
+                    <option value="Giới thiệu đề tài" {% if app_mode == "Giới thiệu đề tài" %}selected{% endif %}>Giới thiệu đề tài</option>
+                    <option value="Phép Mở (Opening) - Xóa nhiễu" {% if app_mode == "Phép Mở (Opening) - Xóa nhiễu" %}selected{% endif %}>Phép Mở (Opening) - Xóa nhiễu</option>
+                    <option value="Phép Đóng (Closing) - Lắp vết nứt" {% if app_mode == "Phép Đóng (Closing) - Lắp vết nứt" %}selected{% endif %}>Phép Đóng (Closing) - Lắp vết nứt</option>
+                </select>
+
+                <div class="side-step {% if app_mode == 'Giới thiệu đề tài' %}hidden{% endif %}" id="buoc2">Bước 2 • Kernel</div>
+                <div id="tuy-chon-kernel" class="{% if app_mode == 'Giới thiệu đề tài' %}hidden{% endif %}">
+                    <label class="field-label">Kích thước Kernel: <span id="kernel_size_val">{{ kernel_size }}</span></label>
+                    <input type="range" name="kernel_size" id="kernel_size" min="3" max="21" step="2" value="{{ kernel_size }}"
+                           oninput="document.getElementById('kernel_size_val').innerText = this.value">
+
+                    <label class="field-label">Hình dạng Kernel:</label>
+                    <select name="kernel_type" id="kernel_type">
+                        <option value="Hình chữ nhật (RECT)" {% if kernel_type == "Hình chữ nhật (RECT)" %}selected{% endif %}>Hình chữ nhật (RECT)</option>
+                        <option value="Hình chữ thập (CROSS)" {% if kernel_type == "Hình chữ thập (CROSS)" %}selected{% endif %}>Hình chữ thập (CROSS)</option>
+                        <option value="Hình Elip (ELLIPSE)" {% if kernel_type == "Hình Elip (ELLIPSE)" %}selected{% endif %}>Hình Elip (ELLIPSE)</option>
+                    </select>
+                </div>
+
+                <div class="side-step {% if app_mode == 'Giới thiệu đề tài' %}hidden{% endif %}" id="buoc3">Bước 3 • Tùy chọn</div>
+                <div id="tuy-chon-nang-cao" class="{% if app_mode == 'Giới thiệu đề tài' %}hidden{% endif %}">
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="invert_binary" id="invert_binary" {% if invert_binary %}checked{% endif %}>
+                        Đảo ngược nhị phân (vật thể tối)
+                    </label>
+
+                    <label class="field-label" style="margin-top:14px;">📸 Tải ảnh đầu vào</label>
+                    <input type="file" name="anh_dau_vao" accept=".jpg,.jpeg,.png">
+
+                    <button type="submit" class="btn-xu-ly">Xử lý ảnh</button>
+
+                    {% if da_co_anh %}
+                    <button type="submit" name="clear_cache" value="1"
+                            class="btn-xu-ly"
+                            style="background:#f1f5f9; color:#334155; box-shadow:none; margin-top:8px;">
+                        Xóa ảnh đã tải
+                    </button>
+                    
+                    {% endif %}
+                </div>
+            </form>
+
+            <hr>
+        </aside>
+
+        <!-- NỘI DUNG CHÍNH -->
+        <main class="main-content">
+
+            <div class="hero-banner">
+                <div class="hero-tag">XỬ LÝ ẢNH NHỊ PHÂN</div>
+                <div class="hero-title">Làm Sạch &amp; Phục Hồi Ảnh</div>
+                <div class="hero-subtitle">Ứng dụng Phép Mở và Phép Đóng để khử nhiễu, sửa chữa và làm sạch ảnh một cách thông minh</div>
+            </div>
+
+            {% if app_mode == "Giới thiệu đề tài" %}
+
+                <div class="info-card">
+                    <h4>Giới thiệu Đề tài</h4>
+                    <p><b>ĐỀ TÀI 19:</b> ỨNG DỤNG PHÉP MỞ VÀ PHÉP ĐÓNG TRONG XỬ LÝ ẢNH NHỊ PHÂN</p>
+                    <p><b>Mục tiêu:</b> Sử dụng toán học hình thái học để làm sạch ảnh, loại bỏ nhiễu và khôi phục cấu trúc vật thể bị hỏng.</p>
+                </div>
+
+                <div class="feature-grid">
+                    <div class="info-card feature-card">
+                        <div class="feature-title">Phép Mở</div>
+                        <span class="feature-desc">Khử nhiễu hạt nhỏ</span>
+                    </div>
+                    <div class="info-card feature-card">
+                        <div class="feature-title">Phép Đóng</div>
+                        <span class="feature-desc">Lấp lỗ &amp; nối vết đứt</span>
+                    </div>
+                    <div class="info-card feature-card">
+                        <div class="feature-title">Kernel Tùy Chỉnh</div>
+                        <span class="feature-desc">Kích thước &amp; hình dạng</span>
+                    </div>
+                </div>
+
+                <img class="hero-image"
+                     src="https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?auto=format&fit=crop&w=1200&q=80"
+                     alt="Hệ thống xử lý ảnh thông minh">
+
+            {% else %}
+
+                <div class="info-card" style="display:inline-block; padding:12px 20px; margin-bottom:16px;">
+                    <h4 style="margin:0; font-size:17px;">📸 Tải ảnh đầu vào</h4>
+                </div>
+
+                {% if loi %}
+                    <div class="info-card" style="border-left:6px solid #ef4444; color:#991b1b;">
+                        ❌ {{ loi }}
+                    </div>
+                {% endif %}
+
+                {% if ket_qua %}
+
+                    <div class="metric-row">
+                        <div class="metric-box">
+                            <div class="metric-label">Kernel Size</div>
+                            <div class="metric-value">{{ ket_qua.kernel_size }} × {{ ket_qua.kernel_size }}</div>
+                        </div>
+                        <div class="metric-box">
+                            <div class="metric-label">Kernel Shape</div>
+                            <div class="metric-value">{{ ket_qua.kernel_type }}</div>
+                        </div>
+                        <div class="metric-box">
+                            <div class="metric-label">Ảnh gốc</div>
+                            <div class="metric-value">{{ ket_qua.kich_thuoc_goc }}</div>
+                        </div>
+                    </div>
+
+                    <div class="image-grid">
+                        <div class="img-card">
+                            <div class="img-card-title">1. Ảnh nhị phân gốc</div>
+                            <div class="img-card-body">
+                                <img src="{{ ket_qua.anh_goc }}" alt="Ảnh nhị phân gốc">
+                            </div>
+                        </div>
+                        <div class="img-card">
+                            <div class="img-card-title">2. {{ ket_qua.nhan_anh_giua }}</div>
+                            <div class="img-card-body">
+                                <img src="{{ ket_qua.anh_giua }}" alt="{{ ket_qua.nhan_anh_giua }}">
+                            </div>
+                        </div>
+                        <div class="img-card">
+                            <div class="img-card-title accent">3. {{ ket_qua.nhan_ket_qua }}</div>
+                            <div class="img-card-body">
+                                <img src="{{ ket_qua.anh_ket_qua }}" alt="{{ ket_qua.nhan_ket_qua }}">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="analysis-box">
+                        <b>Phân tích:</b> {{ ket_qua.phan_tich }}
+                    </div>
+
+                {% elif not loi %}
+                    <div class="info-card" style="text-align:center; padding:3rem 2rem;">
+                        <div style="font-size:3rem; margin-bottom:1rem;"></div>
+                        <b>Chưa có ảnh nào được tải lên</b><br>
+                        <span style="color:#64748B;">Chọn ảnh và bấm "Xử lý ảnh" ở sidebar để bắt đầu</span>
+                    </div>
+                {% endif %}
+
+            {% endif %}
+
+        </main>
+    </div>
+
+    <script>
+
+        (function thietLapTuDongApDung() {
+            const daCoAnh = document.body.dataset.daCoAnh === "true";
+            if (!daCoAnh) return;
+
+            const form = document.getElementById("form-dieu-khien");
+            const tuDongApDung = () => form.submit();
+
+            const oKernelSize = document.getElementById("kernel_size");
+            const oKernelType = document.getElementById("kernel_type");
+            const oInvert = document.getElementById("invert_binary");
+
+            if (oKernelSize) oKernelSize.addEventListener("change", tuDongApDung);
+            if (oKernelType) oKernelType.addEventListener("change", tuDongApDung);
+            if (oInvert) oInvert.addEventListener("change", tuDongApDung);
+        })();
+    </script>
+
+</body>
+</html>
