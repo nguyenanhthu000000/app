@@ -1,104 +1,163 @@
-import streamlit as st
+import base64
+import time
+import uuid
 import cv2
 import numpy as np
+from flask import Flask, render_template, request, session
 
-def phep_mo_opening(binary_img, kernel):
-    if binary_img is None:
-        return None
-    return cv2.morphologyEx(binary_img, cv2.MORPH_OPEN, kernel)
-
-def phep_dong_closing(binary_img, kernel):
-    if binary_img is None:
-        return None
-    return cv2.morphologyEx(binary_img, cv2.MORPH_CLOSE, kernel)
-
-def tao_nhieu_hat_trang(binary_img, phan_tram=0.03):
-    noisy_img = binary_img.copy()
-    num_noise = int(phan_tram * binary_img.size)
-    coords = [np.random.randint(0, i - 1, num_noise) for i in binary_img.shape]
-    noisy_img[tuple(coords)] = 255
-    return noisy_img
-
-def tao_vet_nut_den(binary_img):
-    damaged_img = binary_img.copy()
-    h, w = binary_img.shape
-    cv2.line(damaged_img, (int(w*0.1), int(h*0.4)), (int(w*0.9), int(h*0.45)), 0, 6)
-    cv2.circle(damaged_img, (int(w*0.5), int(h*0.65)), 18, 0, -1)
-    cv2.circle(damaged_img, (int(w*0.35), int(h*0.25)), 12, 0, -1)
-    return damaged_img
-
-st.set_page_config(page_title="Đồ án Đề tài 19", layout="wide")
-
-st.title("Ứng dụng Xử lý hình thái học Ảnh Nhị phân 🤖")
-st.markdown("### **Đề tài 19: Ứng dụng phép mở và phép đóng trong xử lý ảnh nhị phân**")
-st.markdown("---")
-
-st.sidebar.header("⚙️ KHUNG ĐIỀU KHIỂN")
-st.sidebar.subheader("Bước 1: Chọn Đề tài Khảo sát")
-app_mode = st.sidebar.selectbox(
-    "Lựa chọn phép toán toán hình thái học:",
-    ["Giới thiệu đề tài", "Phép Mở (Opening) - Xóa nhiễu", "Phép Đóng (Closing) - Lắp vết nứt"]
+from xu_ly_anh import (
+    phep_mo_opening,
+    phep_dong_closing,
+    tao_nhieu_hat_trang,
+    tao_vet_nut_den,
 )
 
-st.sidebar.subheader("Bước 2: Cấu hình tham số Kernel")
-kernel_size = st.sidebar.slider("Kích thước Mặt nạ (Kernel Size):", min_value=3, max_value=21, value=5, step=2)
-kernel_type = st.sidebar.selectbox("Hình dáng Mặt nạ (Kernel Shape):", ["Hình chữ nhật (RECT)", "Hình chữ thập (CROSS)", "Hình Elip (ELLIPSE)"])
+app = Flask(__name__)
+app.secret_key = "morphlab_secret_key_pro"
 
-if kernel_type == "Hình chữ nhật (RECT)":
-    k_shape = cv2.MORPH_RECT
-elif kernel_type == "Hình chữ thập (CROSS)":
-    k_shape = cv2.MORPH_CROSS
-else:
-    k_shape = cv2.MORPH_ELLIPSE
+# Bộ nhớ tạm phía server để lưu ảnh gốc theo từng phiên
+# Cookie chỉ lưu 1 chuỗi ID nhỏ -> tránh lỗi vượt giới hạn 4KB của cookie
+# Cấu trúc: {sid: (file_bytes, last_used_timestamp)}
+IMAGE_CACHE = {}
 
-kernel = cv2.getStructuringElement(k_shape, (kernel_size, kernel_size))
+CACHE_TTL_GIAY = 30 * 60
 
-if app_mode == "Giới thiệu đề tài":
-    st.subheader("📋 Tổng quan Đề tài môn học")
-    st.info("""
-    **ĐỀ TÀI 19: ỨNG DỤNG PHÉP MỞ VÀ PHÉP ĐÓNG TRONG XỬ LÝ ẢNH NHỊ PHÂN**
-    
-    * **Mục tiêu:** Ứng dụng toán hình thái học để làm sạch ảnh, loại bỏ chi tiết thừa nhỏ li ti (nhiễu) và chữa lành các liên kết bị đứt nét, lỗ thủng nội bộ của vật thể.
-    * **Hướng dẫn sử dụng:** Chọn menu tính năng 'Phép Mở' hoặc 'Phép Đóng' ở thanh điều hướng bên trái, sau đó tải ảnh lên để xem kết quả biến đổi thời gian thực.
-    """)
-    st.image("https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?auto=format&fit=crop&w=800&q=80", caption="Hệ thống phân tích xử lý ảnh thông minh số hóa")
 
-else:
-    st.subheader("📸 Tải ảnh đầu vào lên hệ thống")
-    uploaded_file = st.file_uploader("Kéo và thả file ảnh vào đây (Hỗ trợ JPG, PNG, JPEG)", type=["jpg", "png", "jpeg"])
+def don_dep_cache_cu():
+    now = time.time()
+    het_han = [sid for sid, (_, t) in IMAGE_CACHE.items() if now - t > CACHE_TTL_GIAY]
+    for sid in het_han:
+        IMAGE_CACHE.pop(sid, None)
 
-    if uploaded_file is not None:
-        file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
-        src_img = cv2.imdecode(file_bytes, cv2.IMREAD_GRAYSCALE)
-        
-        _, base_binary = cv2.threshold(src_img, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-        
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            st.image(base_binary, caption="1. Ảnh nhị phân gốc", use_container_width=True)
-            
-        if app_mode == "Phép Mở (Opening) - Xóa nhiễu":
-            img_with_fault = tao_nhieu_hat_trang(base_binary)
-            img_result = phep_mo_opening(img_with_fault, kernel)
-            
-            with col2:
-                st.image(img_with_fault, caption="2. Ảnh giả lập dính nhiễu hạt trắng", use_container_width=True)
-            with col3:
-                st.image(img_result, caption=f"3. Kết quả Phép Mở (Kernel {kernel_size}x{kernel_size})", use_container_width=True)
-                
-            st.success("💡 **Phân tích của hệ thống:** Phép mở thực hiện phép co trước để bóc tách triệt tiêu các chấm nhiễu trắng nhỏ hơn kích thước mặt nạ, sau đó giãn ra để hồi phục cấu trúc vật thể ban đầu nguyên vẹn!")
-            
-        elif app_mode == "Phép Đóng (Closing) - Lắp vết nứt":
-            img_with_fault = tao_vet_nut_den(base_binary)
-            img_result = phep_dong_closing(img_with_fault, kernel)
-            
-            with col2:
-                st.image(img_with_fault, caption="2. Ảnh giả lập bị nứt gãy / thủng lỗ đen", use_container_width=True)
-            with col3:
-                st.image(img_result, caption=f"3. Kết quả Phép Đóng (Kernel {kernel_size}x{kernel_size})", use_container_width=True)
-                
-            st.success("💡 **Phân tích của hệ thống:** Phép đóng thực hiện phép giãn trước để làm phình to vùng trắng nhằm lấp đầy hoàn toàn khe nứt hoặc hố đen tổn hại, sau đó co lại nhằm trả về đúng kích thước chuẩn xác ban đầu!")
 
+def anh_sang_base64(img):
+    if img is None:
+        return None
+    ok, buffer = cv2.imencode(".png", img)
+    if not ok:
+        return None
+    return "data:image/png;base64," + base64.b64encode(buffer).decode("utf-8")
+
+
+@app.route("/", methods=["GET", "POST"])
+def index():
+    don_dep_cache_cu()
+
+    if "sid" not in session:
+        session["sid"] = str(uuid.uuid4())
+    sid = session["sid"]
+
+
+    if request.method == "GET":
+        IMAGE_CACHE.pop(sid, None)
+
+    # ---- Giá trị mặc định / lấy từ form ----
+    app_mode = request.form.get("app_mode", "Giới thiệu đề tài")
+    kernel_size = int(request.form.get("kernel_size", 5))
+    kernel_type = request.form.get("kernel_type", "Hình chữ nhật (RECT)")
+    invert_binary = request.form.get("invert_binary") == "on"
+
+    if request.method == "POST" and request.form.get("clear_cache") == "1":
+        IMAGE_CACHE.pop(sid, None)
+        return render_template(
+            "index.html",
+            app_mode=app_mode,
+            kernel_size=kernel_size,
+            kernel_type=kernel_type,
+            invert_binary=invert_binary,
+            ket_qua=None,
+            loi=None,
+            da_co_anh=False,
+        )
+
+    if kernel_type == "Hình chữ nhật (RECT)":
+        k_shape = cv2.MORPH_RECT
+    elif kernel_type == "Hình chữ thập (CROSS)":
+        k_shape = cv2.MORPH_CROSS
     else:
-        st.warning("⚠️ Đang đợi tải file ảnh lên để kích hoạt hệ thống xử lý tự động...")
+        k_shape = cv2.MORPH_ELLIPSE
+
+    kernel = cv2.getStructuringElement(k_shape, (kernel_size, kernel_size))
+
+    ket_qua = None
+    loi = None
+
+    if request.method == "POST" and app_mode != "Giới thiệu đề tài":
+        uploaded_file = request.files.get("anh_dau_vao")
+
+        # 1. Nếu người dùng chọn file mới -> Đọc và lưu vào server
+        if uploaded_file and uploaded_file.filename != "":
+            file_bytes = uploaded_file.read()
+            src_img_check = cv2.imdecode(np.frombuffer(file_bytes, dtype=np.uint8), cv2.IMREAD_GRAYSCALE)
+            if src_img_check is not None:
+                IMAGE_CACHE[sid] = (file_bytes, time.time())
+            else:
+                loi = "Không đọc được file ảnh. Vui lòng thử lại với file khác."
+
+        # 2. Nếu không tải file mới, dùng lại ảnh đã lưu trước đó theo sid
+        src_img = None
+        if sid in IMAGE_CACHE:
+            img_bytes, _ = IMAGE_CACHE[sid]
+            IMAGE_CACHE[sid] = (img_bytes, time.time())  # cập nhật thời điểm dùng gần nhất
+            src_img = cv2.imdecode(np.frombuffer(img_bytes, dtype=np.uint8), cv2.IMREAD_GRAYSCALE)
+
+        # 3. Xử lý logic
+        dang_chi_doi_mode = request.form.get("mode_switch") == "1"
+        if src_img is None and not loi:
+            # Nếu người dùng chỉ vừa đổi mode (chưa từng chọn ảnh) thì không
+            # báo lỗi ngay, để trang chính chuyển sang khung "chưa có ảnh"
+            # một cách bình thường thay vì hiện lỗi đỏ
+            if not dang_chi_doi_mode:
+                loi = "Vui lòng chọn một file ảnh trước khi xử lý."
+        elif src_img is not None:
+            thresh_mode = cv2.THRESH_BINARY_INV if invert_binary else cv2.THRESH_BINARY
+            _, base_binary = cv2.threshold(src_img, 0, 255, thresh_mode + cv2.THRESH_OTSU)
+
+            if app_mode == "Phép Mở (Opening) - Xóa nhiễu":
+                img_with_fault = tao_nhieu_hat_trang(base_binary)
+                img_result = phep_mo_opening(img_with_fault, kernel)
+                nhan_anh_giua = "Ảnh có nhiễu hạt trắng"
+                nhan_ket_qua = f"Kết quả Phép Mở ({kernel_size}×{kernel_size})"
+                phan_tich = (
+                    "Phép Mở giúp loại bỏ hoàn toàn nhiễu hạt nhỏ trong khi vẫn "
+                    "giữ được hình dạng chính của vật thể."
+                )
+            else:  # Phép Đóng
+                img_with_fault = tao_vet_nut_den(base_binary)
+                img_result = phep_dong_closing(img_with_fault, kernel)
+                nhan_anh_giua = "Ảnh có vết nứt / lỗ thủng"
+                nhan_ket_qua = f"Kết quả Phép Đóng ({kernel_size}×{kernel_size})"
+                phan_tich = (
+                    "Phép Đóng giúp lấp đầy các khe nứt và lỗ thủng, khôi phục "
+                    "sự liền mạch của vật thể."
+                )
+
+            ket_qua = {
+                "anh_goc": anh_sang_base64(base_binary),
+                "anh_giua": anh_sang_base64(img_with_fault),
+                "anh_ket_qua": anh_sang_base64(img_result),
+                "nhan_anh_giua": nhan_anh_giua,
+                "nhan_ket_qua": nhan_ket_qua,
+                "phan_tich": phan_tich,
+                "kernel_size": kernel_size,
+                "kernel_type": kernel_type.split(" (")[0],
+                "kich_thuoc_goc": f"{src_img.shape[1]} × {src_img.shape[0]} px",
+            }
+
+
+    da_co_anh = sid in IMAGE_CACHE
+
+    return render_template(
+        "index.html",
+        app_mode=app_mode,
+        kernel_size=kernel_size,
+        kernel_type=kernel_type,
+        invert_binary=invert_binary,
+        ket_qua=ket_qua,
+        loi=loi,
+        da_co_anh=da_co_anh,
+    )
+
+
+if __name__ == "__main__":
+    app.run(debug=True, use_reloader=False)
